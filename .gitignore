@@ -1,3 +1,15 @@
-*.out
-run
-*.dSYM/
+# Ignore everything by default and opt in only the source/test/docs files
+*
+
+!.gitignore
+!README.md
+!Makefile
+!CMakeLists.txt
+!buffer_api.c
+!buffer_api.h
+!buffer_array.c
+!buffer_array.h
+!buffer_list.c
+!buffer_list.h
+!buffer_log.h
+!test.c

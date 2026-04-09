@@ -2,11 +2,26 @@
 #include <stddef.h>
 
 
-int create_cb(void**, size_t, int, const char); 
-int delete_cb(void**, const char); 
+#define ARRAY 1
+#define LLIST 2
 
-int push_value(void*, void*, int, const char);
-int pop_value(void *buf, void*, const char);
+typedef struct buffer_inf{
+    void* buffer;
+    int type;
+} buffer_inf; 
 
-int is_empty(void* buf, const char); 
-int is_full(void* buf, const char); 
+typedef void (*cb_iter_fn)(const void* item, int i);
+
+
+int create_cb(buffer_inf**, size_t, int, int);
+int delete_cb(buffer_inf**); 
+
+int push_value(buffer_inf*, void*);
+int pop_value(buffer_inf *buf, void*);
+
+int is_empty(buffer_inf* buf); 
+int is_full(buffer_inf* buf);
+
+int foreach_value(buffer_inf* buf, cb_iter_fn func); 
+int get_size(buffer_inf* buf);
+int get_capacity(buffer_inf* buf);

@@ -1,146 +1,249 @@
-#include <stdlib.h> 
-#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
+#include <errno.h>
+
 #include "buffer_list.h"
+#include "buffer_log.h"
 
-int create_cb_node(cl_node** dest, size_t type_size, cl_node *next, cl_node* prev){
-    cl_node *node = malloc(sizeof(cl_node)); 
+static int create_cb_node(cl_node** dest_ptr, size_t type_size, cl_node *next, cl_node* prev){
+    if(dest_ptr == NULL){
+        CB_LOG_ERROR("The destination pointer is NULL");
+        return EFAULT;
+    }
+
+    cl_node *node = malloc(sizeof(cl_node));
     if(node == NULL){
-        return 0; 
+        CB_LOG_ERROR("Failed to allocate memory for the node struct");
+        return ENOMEM;
     }
-    node->item = malloc(type_size); 
+
+    node->item = malloc(type_size);
     if(node->item == NULL){
-        free(node); 
-        return 0; 
+        CB_LOG_ERROR("Failed to allocate memory for the node's item space");
+        free(node);
+        return ENOMEM;
     }
-    node->next = next; 
-    node->prev = prev; 
 
-    *dest = node; 
+    node->next = next;
+    node->prev = prev;
+    *dest_ptr = node;
 
-    return 1;
+    return 0;
 }
 
-
-
 int create_cb_list(circular_list** dest_ptr, size_t type_size, int size){
-    circular_list* cl;
-    cl = malloc(sizeof(circular_list)); 
-    if(cl == NULL)
-        return 0; 
-
-
-    create_cb_node(&cl->head, type_size, NULL, NULL);
-    if(cl->head == NULL){
-        //Error allocating size free the cl
-        free(cl); 
-        return 0; 
+    if(dest_ptr == NULL){
+        CB_LOG_ERROR("The destination pointer is NULL");
+        return EFAULT;
     }
-    cl->tail = cl->head; 
 
-    
-    
+    circular_list* cl = malloc(sizeof(circular_list));
+    if(cl == NULL){
+        CB_LOG_ERROR("Failed to allocate memory for the list buffer struct");
+        return ENOMEM;
+    }
 
-    cl->count = 0; 
+    int err = create_cb_node(&cl->head, type_size, NULL, NULL);
+    if(err != 0){
+        CB_LOG_ERROR("Failed to allocate memory for the list buffer");
+        free(cl);
+        return ENOMEM;
+    }
 
+    cl->tail = cl->head;
+    cl->count = 0;
     cl->capacity = size;
     cl->type_size = type_size;
 
     *dest_ptr = cl;
 
-    return 1; 
+    return 0;
 }
+
 int delete_cb_list(circular_list** buf){
-    if(*buf == NULL){ 
-        printf("Error\n"); 
-        return 0; 
+    if(buf == NULL){
+        CB_LOG_ERROR("The pointer to the list buffer pointer is NULL");
+        return EFAULT;
+    }
+    if(*buf == NULL){
+        CB_LOG_ERROR("The list buffer pointer is NULL");
+        return EFAULT;
+    }
+    if((*buf)->head == NULL || (*buf)->tail == NULL){
+        CB_LOG_ERROR("The head or tail of the buffer is NULL");
+        return EFAULT;
     }
 
-    if((*buf)->head == NULL){
-        printf("Error\n"); 
-        return 0;  
+    cl_node* node = (*buf)->head;
+    while(node != NULL){
+        cl_node* tmp = node->next;
+        free(node->item);
+        free(node);
+        node = tmp;
     }
 
-    while((*buf)->head != NULL){
-        cl_node* tmp = (*buf)->head->next; 
-        free((*buf)->head);
-        (*buf)->head = tmp; 
-    }
-    
-    
-    free(*buf); 
-    
-    //Null out the pointer to avoid malloc issues
-    *buf = NULL; 
-    
-    return 1; 
+    free(*buf);
+    *buf = NULL;
+
+    return 0;
 }
 
-int push_value_list(circular_list* buf, void* item, int override){
-    
-    if(buf == NULL)
-        return 0; 
-    
+int push_value_list(circular_list* buf, void* item){
+    if(buf == NULL){
+        CB_LOG_ERROR("The list buffer pointer is NULL");
+        return EFAULT;
+    }
+    if(item == NULL){
+        CB_LOG_ERROR("The item pointer is NULL");
+        return EFAULT;
+    }
     if(is_full_list(buf)) {
-        if(override == 0) return 0; 
-        buf->tail->next = buf->head;
-        buf->head = buf->head->next; 
-    }
-    else {
-        buf->count++;
+        CB_LOG_ERROR("The buffer is full");
+        return EQFULL;
     }
 
-    
-    //copying data to the last position of the buffer from the item
-    memcpy((char *)buf->tail->item, item, buf->type_size); 
+    if(buf->tail->next == NULL) {
+        int er = create_cb_node(&(buf->tail->next), buf->type_size, NULL, buf->tail);
+        if (er != 0) {
+            CB_LOG_ERROR("Node creation failed");
+            return er;
+        }
+    }
 
-    if(buf->tail->next == NULL) 
-        create_cb_node(&(buf->tail->next), buf->type_size, NULL, buf->tail); 
-    
+    memcpy((char *)buf->tail->item, item, buf->type_size);
+
+    buf->count++;
     buf->tail = buf->tail->next;
 
-    return 1; 
-    
+    return 0;
 }
-int pop_value_list(circular_list *buf, void* val){
-    if(buf == NULL)
-        return 0; 
-    
-    if(buf->head == NULL || buf->tail == NULL)
-        return 0; 
 
+int pop_value_list(circular_list *buf, void* val){
+    if(buf == NULL){
+        CB_LOG_ERROR("The pointer to the struct buffer pointer is NULL");
+        return EFAULT;
+    }
+    if(val == NULL){
+        CB_LOG_ERROR("The output value pointer is NULL");
+        return EFAULT;
+    }
     if(is_empty_list(buf))
     {
-        printf("The buffer is empty\n"); 
-        return 0; 
+        CB_LOG_ERROR("The list buffer is empty");
+        return EAGAIN;
+    }
+    if(buf->head == NULL || buf->tail == NULL){
+        CB_LOG_ERROR("The head or tail of the buffer is NULL");
+        return EFAULT;
     }
 
-    
-    
-    //Copy the value first
-    memcpy(val, (char *)buf->head->item, buf->type_size);
+    cl_node *node = buf->head;
+    memcpy(val, (char *)node->item, buf->type_size);
 
-
-    cl_node *tmp = buf->head; 
-
-    if(buf->head->next == NULL){
-        create_cb_node(&buf->head->next, buf->type_size, NULL, NULL); 
-        buf->head = buf->head->next; 
-        buf->tail = buf->head; 
+    if(node->next == NULL){
+        int er = create_cb_node(&node->next, buf->type_size, NULL, NULL);
+        if(er != 0){
+            CB_LOG_ERROR("Error creating a new node during pop");
+            return -1;
+        }
+        buf->head = node->next;
+        buf->tail = buf->head;
     }
-    else buf->head = buf->head->next; 
-       //Clearing out the element
-    memset((char *)tmp->item, 0, buf->type_size);
+    else {
+        buf->head = buf->head->next;
+        buf->head->prev = NULL;
+    }
 
-    buf->count--; 
-    
-    return 1; 
+    free(node->item);
+    free(node);
+
+    buf->count--;
+
+    return 0;
 }
 
 int is_empty_list(circular_list* buf){
-    return buf->count == 0; 
+    if(buf == NULL) {
+        CB_LOG_ERROR("The list buffer struct pointer is null");
+        return -1;
+    }
+    return buf->count == 0;
 }
+
 int is_full_list(circular_list* buf){
-    return buf->capacity == buf->count; 
+    if(buf == NULL) {
+        CB_LOG_ERROR("The list buffer struct pointer is null");
+        return -1;
+    }
+    return buf->count == buf->capacity;
+}
+
+int get_item_list(circular_list* buf, int index, void** ptr, cl_node** cont)
+{
+    if (buf == NULL)
+    {
+        CB_LOG_ERROR("The pointer to circular list struct pointer is NULL");
+        return EFAULT;
+    }
+    if (ptr == NULL)
+    {
+        CB_LOG_ERROR("The output item pointer is NULL");
+        return EFAULT;
+    }
+    if (cont == NULL)
+    {
+        CB_LOG_ERROR("The continuation pointer is NULL");
+        return EFAULT;
+    }
+    if (index < 0 || index >= buf->count)
+    {
+        CB_LOG_ERROR("The requested index is out of range");
+        return EFAULT;
+    }
+
+    cl_node* stepper = buf->head;
+    if (*cont != NULL)
+    {
+        stepper = (*cont);
+        *cont = (*cont)->next;
+        stepper = stepper->next;
+    }
+    else
+    {
+        for(int i = 0; i < index && stepper != NULL; i++)
+            stepper = stepper->next;
+    }
+
+    if (stepper == NULL || stepper->item == NULL)
+    {
+        *cont = NULL;
+        return -1;
+    }
+
+    if (*cont == NULL)
+    {
+        *cont = stepper;
+    }
+
+    *ptr = stepper->item;
+
+    return 0;
+}
+
+int get_size_list(circular_list* buf){
+    if (buf == NULL)
+    {
+        CB_LOG_ERROR("No buffer struct pointer provided");
+        return EFAULT;
+    }
+    return buf->count;
+}
+
+int get_capacity_list(circular_list* buf){
+    if (buf == NULL)
+    {
+        CB_LOG_ERROR("No buffer struct pointer provided");
+        return EFAULT;
+    }
+    return buf->capacity;
 }
