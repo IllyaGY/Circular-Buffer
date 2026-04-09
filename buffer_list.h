@@ -22,9 +22,9 @@ int delete_cb_list(circular_list**);
 int push_value_list(circular_list*, void*);
 int pop_value_list(circular_list *buf, void*); 
 
-int is_empty_list(circular_list* buf); 
-int is_full_list(circular_list* buf); 
+int is_empty_list(circular_list* buf, int *result); 
+int is_full_list(circular_list* buf, int *result); 
 
 int get_item_list(circular_list*, int index, void**, cl_node**);
-int get_size_list(circular_list* buf);
-int get_capacity_list(circular_list* buf);
+int get_size_list(circular_list* buf, int *size);
+int get_capacity_list(circular_list* buf, int *capacity);

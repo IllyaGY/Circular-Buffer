@@ -72,6 +72,7 @@ void call(int input, void *val){
     }
 }
 
+//function passed as a callback
 void output(const void* item, int i){
     const student *s = item;
     mvprintw(i, 0, "%s %d\n", s->name, s->id);
@@ -137,11 +138,19 @@ int main(){
 
 
 void test(){
-    create_cb(&active_buf, sizeof(student), 10,  ARRAY);
+    if (create_cb(&active_buf, sizeof(student), 10, ARRAY) != 0) {
+        return;
+    }
+
+    int capacity = 0;
+    if (get_capacity(active_buf, &capacity) != 0) {
+        delete_cb(&active_buf);
+        return;
+    }
 
 
     #if TEST_CASE == 0
-    for(int i = 0; i < get_capacity(active_buf); i++) {
+    for(int i = 0; i < capacity; i++) {
         student a; 
         char b[50]; 
         sprintf(b, "Student %d", i); 
@@ -154,7 +163,7 @@ void test(){
 
 
     #elif TEST_CASE == 1
-    for(int i = 0; i < get_capacity(active_buf)/2; i++) {
+    for(int i = 0; i < capacity / 2; i++) {
         student a; 
         char b[50]; 
         sprintf(b, "Student %d", i); 

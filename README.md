@@ -21,11 +21,10 @@ The public entry point is `buffer_api.h`. The demo program in `test.c` uses `ncu
 The public API is intentionally centered on the wrapper type:
 
 ```c
-typedef struct buffer_inf {
-    void *buffer;
-    int type;
-} buffer_inf;
+typedef struct buffer_inf buffer_inf;
 ```
+
+`buffer_inf` is an opaque handle. Callers work with `buffer_inf *` values returned by `create_cb`, and the implementation keeps the internal fields private.
 
 Supported operations:
 
@@ -43,6 +42,18 @@ Implementation type is selected with:
 
 - `ARRAY`
 - `LLIST`
+
+Status and getter APIs return an error code and write results through output pointers. Example:
+
+```c
+int capacity = 0;
+int is_buffer_empty = 0;
+
+if (get_capacity(buf, &capacity) == 0 &&
+    is_empty(buf, &is_buffer_empty) == 0) {
+    printf("capacity=%d empty=%d\n", capacity, is_buffer_empty);
+}
+```
 
 ## Iteration and Display
 

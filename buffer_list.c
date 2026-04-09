@@ -36,6 +36,14 @@ int create_cb_list(circular_list** dest_ptr, size_t type_size, int size){
         CB_LOG_ERROR("The destination pointer is NULL");
         return EFAULT;
     }
+    if(type_size == 0){
+        CB_LOG_ERROR("The element size must be greater than zero");
+        return EINVAL;
+    }
+    if(size <= 0){
+        CB_LOG_ERROR("The buffer capacity must be greater than zero");
+        return EINVAL;
+    }
 
     circular_list* cl = malloc(sizeof(circular_list));
     if(cl == NULL){
@@ -93,13 +101,22 @@ int push_value_list(circular_list* buf, void* item){
         CB_LOG_ERROR("The list buffer pointer is NULL");
         return EFAULT;
     }
+    if(buf->tail == NULL){
+        CB_LOG_ERROR("The tail node pointer is NULL");
+        return EFAULT;
+    }
     if(item == NULL){
         CB_LOG_ERROR("The item pointer is NULL");
         return EFAULT;
     }
-    if(is_full_list(buf)) {
+    int is_full = 0;
+    int err = is_full_list(buf, &is_full);
+    if(err != 0){
+        return err;
+    }
+    if(is_full) {
         CB_LOG_ERROR("The buffer is full");
-        return EQFULL;
+        return ENOBUFS;
     }
 
     if(buf->tail->next == NULL) {
@@ -127,7 +144,12 @@ int pop_value_list(circular_list *buf, void* val){
         CB_LOG_ERROR("The output value pointer is NULL");
         return EFAULT;
     }
-    if(is_empty_list(buf))
+    int is_empty = 0;
+    int err = is_empty_list(buf, &is_empty);
+    if(err != 0){
+        return err;
+    }
+    if(is_empty)
     {
         CB_LOG_ERROR("The list buffer is empty");
         return EAGAIN;
@@ -144,7 +166,7 @@ int pop_value_list(circular_list *buf, void* val){
         int er = create_cb_node(&node->next, buf->type_size, NULL, NULL);
         if(er != 0){
             CB_LOG_ERROR("Error creating a new node during pop");
-            return -1;
+            return er;
         }
         buf->head = node->next;
         buf->tail = buf->head;
@@ -162,20 +184,32 @@ int pop_value_list(circular_list *buf, void* val){
     return 0;
 }
 
-int is_empty_list(circular_list* buf){
+int is_empty_list(circular_list* buf, int *result){
     if(buf == NULL) {
         CB_LOG_ERROR("The list buffer struct pointer is null");
-        return -1;
+        return EFAULT;
     }
-    return buf->count == 0;
+    if(result == NULL){
+        CB_LOG_ERROR("The output result pointer is NULL");
+        return EFAULT;
+    }
+
+    *result = buf->count == 0;
+    return 0;
 }
 
-int is_full_list(circular_list* buf){
+int is_full_list(circular_list* buf, int *result){
     if(buf == NULL) {
         CB_LOG_ERROR("The list buffer struct pointer is null");
-        return -1;
+        return EFAULT;
     }
-    return buf->count == buf->capacity;
+    if(result == NULL){
+        CB_LOG_ERROR("The output result pointer is NULL");
+        return EFAULT;
+    }
+
+    *result = buf->count == buf->capacity;
+    return 0;
 }
 
 int get_item_list(circular_list* buf, int index, void** ptr, cl_node** cont)
@@ -217,7 +251,8 @@ int get_item_list(circular_list* buf, int index, void** ptr, cl_node** cont)
     if (stepper == NULL || stepper->item == NULL)
     {
         *cont = NULL;
-        return -1;
+        CB_LOG_ERROR("The requested item could not be resolved");
+        return EFAULT;
     }
 
     if (*cont == NULL)
@@ -230,20 +265,34 @@ int get_item_list(circular_list* buf, int index, void** ptr, cl_node** cont)
     return 0;
 }
 
-int get_size_list(circular_list* buf){
+int get_size_list(circular_list* buf, int *size){
     if (buf == NULL)
     {
         CB_LOG_ERROR("No buffer struct pointer provided");
         return EFAULT;
     }
-    return buf->count;
+    if (size == NULL)
+    {
+        CB_LOG_ERROR("The output size pointer is NULL");
+        return EFAULT;
+    }
+
+    *size = buf->count;
+    return 0;
 }
 
-int get_capacity_list(circular_list* buf){
+int get_capacity_list(circular_list* buf, int *capacity){
     if (buf == NULL)
     {
         CB_LOG_ERROR("No buffer struct pointer provided");
         return EFAULT;
     }
-    return buf->capacity;
+    if (capacity == NULL)
+    {
+        CB_LOG_ERROR("The output capacity pointer is NULL");
+        return EFAULT;
+    }
+
+    *capacity = buf->capacity;
+    return 0;
 }
